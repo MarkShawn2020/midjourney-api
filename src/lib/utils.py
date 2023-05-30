@@ -4,11 +4,12 @@ import time
 from typing import Union
 
 from settings_server import TRIGGER_ID_PATTERN
+from src.ds import TriggerID
 
 
-def match_trigger_id(content: str) -> Union[str, None]:
+def match_trigger_id(content: str) -> Union[TriggerID, None]:
     match = re.findall(TRIGGER_ID_PATTERN, content)
-    return match[0] if match else None
+    return int(match[0]) if match else None
 
 
 def unique_id():

@@ -1,36 +1,17 @@
-from functools import wraps
-
 from fastapi import APIRouter
-from starlette import status
-from starlette.responses import JSONResponse
 
 from settings_server import PROMPT_PREFIX, PROMPT_SUFFIX
 from src.core.discord import bridge
-from src.ds.system import TriggerImagineIn, TriggerUVIn, TriggerResetIn
+from src.core.server.handlers import http_response
+from src.ds.discord import TriggerType
+from src.ds.server import TriggerImagineIn, TriggerUVIn, TriggerResetIn
 from src.lib.ban import check_banned
 from src.lib.utils import unique_id
 
-root_router = APIRouter()
+midjourney_router = APIRouter(prefix='/midjourney', tags=['midjourney'])
 
 
-def http_response(func):
-    @wraps(func)
-    async def router(*args, **kwargs):
-        trigger_id, resp = await func(*args, **kwargs)
-        if resp is not None:
-            code, trigger_result = status.HTTP_200_OK, "success"
-        else:
-            code, trigger_result = status.HTTP_400_BAD_REQUEST, "fail"
-        
-        return JSONResponse(
-            status_code=code,
-            content={"trigger_id": trigger_id, "trigger_result": trigger_result}
-        )
-    
-    return router
-
-
-@root_router.post("/trigger/imagine", )
+@midjourney_router.post(f"/{TriggerType.imagine}", )
 @http_response
 async def imagine(body: TriggerImagineIn):
     check_banned(body.prompt)
@@ -41,31 +22,31 @@ async def imagine(body: TriggerImagineIn):
     return trigger_id, await bridge.imagine(prompt)
 
 
-@root_router.post("/trigger/upscale", )
+@midjourney_router.post(f"/{TriggerType.upscale}", )
 @http_response
 async def upscale(body: TriggerUVIn):
     return body.trigger_id, await bridge.upscale(**body.dict())
 
 
-@root_router.post("/trigger/variation", )
+@midjourney_router.post(f"/{TriggerType.variation}", )
 @http_response
 async def variation(body: TriggerUVIn):
     return body.trigger_id, await bridge.variation(**body.dict())
 
 
-@root_router.post("/trigger/reset", )
+@midjourney_router.post(f"/{TriggerType.reset}", )
 @http_response
 async def reset(body: TriggerResetIn):
     return body.trigger_id, await bridge.reset(**body.dict())
 
 
-@root_router.post("/trigger/describe")
+@midjourney_router.post(f"/{TriggerType.describe}")
 @http_response
 async def describe():
     pass
 
 
-@root_router.post("/trigger/upload")
+@midjourney_router.post(f"/{TriggerType.upload}")
 @http_response
 async def upload():
     pass

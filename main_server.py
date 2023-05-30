@@ -1,5 +1,6 @@
 import uvicorn
 from fastapi import FastAPI
+from fastapi_socketio import SocketManager
 
 import settings_server  # noqa
 from src.core.server.handlers import exc_handler
@@ -7,18 +8,22 @@ from src.core.server.routers import root_router
 
 
 def init_app():
-    app = FastAPI(title="Midjourney API")
+    _app = FastAPI(title="Midjourney API")
     
-    app.include_router(root_router, prefix=settings_server.API_PREFIX)
-    exc_handler(app)
+    _app.include_router(root_router, prefix=settings_server.API_PREFIX)
+    exc_handler(_app)
     
-    return app
+    _sm = SocketManager(app=_app)
+    
+    return _app, _sm
 
 
-def run(host, port):
-    app = init_app()
-    uvicorn.run(app, port=port, host=host)
+app, sm = init_app()
+
+
+def main(host, port):
+    uvicorn.run("main_server:app", host=host, port=port, reload=settings_server.RELOAD_ENABLED)
 
 
 if __name__ == '__main__':
-    run("0.0.0.0", 8062)
+    main("localhost", 8062)

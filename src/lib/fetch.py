@@ -3,8 +3,8 @@ from typing import Callable, Coroutine, Any, Union
 
 from aiohttp import ClientError, ClientSession
 
-from src.ds.generic import T
-from src.ds.system import FetchMethod
+from src.ds import T
+from src.ds.server import FetchMethod
 from src.lib.exceptions import MaxRetryError
 from src.lib.log import logger
 
