@@ -14,8 +14,12 @@ BOT_TOKEN = getenv("BOT_TOKEN")
 if not all([GUILD_ID, CHANNEL_ID, USER_TOKEN, BOT_TOKEN]):
     raise MissRequiredVariable("Missing required environment variable: [GUILD_ID, CHANNEL_ID, USER_TOKEN, BOT_TOKEN]")
 
-DUMP_CALLBACK_DATA = False
+DUMP_CALLBACK_DATA = True
 CALLBACK_URL = getenv("CALLBACK_URL")  # todo: enable without it
 
 TRIGGER_URL = "https://discord.com/api/v9/interactions"
 UPLOAD_URL = f"https://discord.com/api/v9/channels/{CHANNEL_ID}/attachments"
+
+BANNED_WORDS_RELATIVE_FILE_PATH = "banned_words.txt"
+
+MJ_BOT_ID = 936929561302675456

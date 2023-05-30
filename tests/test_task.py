@@ -1,7 +1,7 @@
+from main_server import app
 from starlette.testclient import TestClient
 
-from main_server import app
-from src.ds.discord import TriggerStatus
+from src.ds import TriggerStatus
 
 client = TestClient(app)
 

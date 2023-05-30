@@ -1,29 +1,26 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
-from src.ds import TriggerID
-from src.ds.discord import ICallback
-from src.lib.store import trigger_manager
+from src.ds import TriggerID, ITriggerCallback, ITriggerManager
 
 trigger_router = APIRouter(prefix='/trigger', tags=['trigger'])
 
+trigger_manager: ITriggerManager = {}
 
-@trigger_router.get('',
-    # response_model=ITriggerManager
-)
+
+@trigger_router.get('', response_model=ITriggerManager)
 async def list_triggers():
     return trigger_manager
 
 
-@trigger_router.post('',
-    # response_model=CallbackDict
-)
-async def set_trigger(data: ICallback):
-    trigger_manager[data.trigger_id] = data
+@trigger_router.post('', response_model=ITriggerCallback)
+async def set_trigger(data: ITriggerCallback):
+    trigger_manager[data.id] = data
     return data
 
 
-@trigger_router.get('/{trigger_id}',
-    # response_model=Optional[CallbackDict]
-)
+@trigger_router.get('/{trigger_id}', response_model=ITriggerCallback)
 async def get_trigger(trigger_id: TriggerID):
-    return trigger_manager.get(trigger_id)
+    result = trigger_manager.get(trigger_id)
+    if not result:
+        raise HTTPException(404, f"trigger(id={trigger_id}) not exists")
+    return result

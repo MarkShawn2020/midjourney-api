@@ -1,19 +1,86 @@
 import json
+import re
 import time
+from typing import MutableMapping
+from uuid import UUID
 
 import aiohttp
-from discord import Message
-from discord.ext.commands import Bot
-from starlette.websockets import WebSocket
-
 import settings_discord
 import settings_server
-from src.ds.discord import TriggerStatus, ICallback, IAttachment
+from discord import Message
+from discord.ext.commands import Bot
+from src.ds.discord import IAttachment, IMessageRaw, IMJMessageCallback, IMessage
+from src.ds.midjourney import DrawStatus, IDraw
 from src.lib.fetch import fetch
 from src.lib.log import logger
 from src.lib.path import DATA_DIR
-from src.lib.store import set_temp, pop_temp, get_temp
-from src.lib.utils import match_trigger_id
+from src.lib.utils import get_trigger_id
+from starlette.websockets import WebSocket
+
+from src.ds import TriggerStatus, ITriggerCallback, TriggerID
+
+trigger_uuid_cache: MutableMapping[TriggerID, UUID] = {}
+
+
+def get_msg_hash(message: Message) -> UUID | None:
+    """
+    得到 mj 返回的 msg 中的 第一个 attachment 里的 hash 信息，可用于后续获取 mj 官方的 cdn链接
+    - 它只在画图完成的时候会出现
+    - 并且后续会调用一次 on_message_delete（然后就没有那个hash信息了），因此要做一下缓存
+    - 不能用 message.id，因为会一直变，要用 trigger_id
+    """
+    logger.debug({"uuid_cache": trigger_uuid_cache})
+    trigger_id = get_trigger_id(message.content)
+    if trigger_id in trigger_uuid_cache:
+        return trigger_uuid_cache[trigger_id]
+    
+    if message.attachments:
+        m = re.search(r"_(\S{36})\.", message.attachments[0].filename)  # 36 = 32（uuid位数） + 4(个中折线)
+        if m:
+            uuid = UUID(m.group(1))
+            trigger_uuid_cache[trigger_id] = uuid
+            logger.debug({"uuid_cache(updated)": trigger_uuid_cache})
+            return uuid
+    return None
+
+
+def get_cdn_url(uuid: UUID, index: int = None) -> str:
+    """
+    index:
+        - None: 四分图
+        - 0~3: 每个大图
+    """
+    if index is not None:
+        assert index in range(4)
+        slug = f"0_{index}"
+    else:
+        slug = "grid_0"
+    return f"https://cdn.midjourney.com/{uuid}/{slug}_640_N.webp"
+
+
+def serialize_message(message: Message, draw_status: DrawStatus) -> IMessage:
+    logger.debug(f"serializing message: {message}")
+    return IMessage(
+        raw=IMessageRaw(
+            id=message.id,
+            content=message.content,
+            attachments=[IAttachment.parse_obj(attachment.to_dict()) for attachment in message.attachments],
+        ),
+        extra=IDraw(
+            status=draw_status,
+            uuid=get_msg_hash(message),
+        )
+    )
+
+
+def get_draw_status(message: Message) -> DrawStatus:
+    content = message.content
+    if content.find("Waiting to start") != -1:
+        return DrawStatus.start
+    elif content.find("(Stopped)") != -1:
+        return DrawStatus.error
+    else:  # todo: more robust validation on potential edge cases
+        return DrawStatus.end
 
 
 def register_discord_handlers(bot: Bot):
@@ -23,87 +90,46 @@ def register_discord_handlers(bot: Bot):
     
     @bot.event
     async def on_message(message: Message):
-        if message.author.id != 936929561302675456:
+        if message.author.id != settings_discord.MJ_BOT_ID:  # exclude messages not come from mj bot
             return
-        
         logger.debug(f"on_message: {message}")
-        content = message.content
-        trigger_id = match_trigger_id(content)
-        if not trigger_id:
-            return
         
-        if content.find("Waiting to start") != -1:
-            type_ = TriggerStatus.start
-            set_temp(trigger_id)
-        elif content.find("(Stopped)") != -1:
-            type_ = TriggerStatus.error
-            pop_temp(trigger_id)
-        else:
-            type_ = TriggerStatus.end
-            pop_temp(trigger_id)
-        
-        await callback(ICallback(
-            type=type_,
-            id=message.id,
-            content=content,
-            attachments=[IAttachment.parse_obj(attachment.to_dict()) for attachment in message.attachments],
-            trigger_id=trigger_id,
-            trigger_status=TriggerStatus.message,
+        await callback(IMJMessageCallback(
+            id=get_trigger_id(message.content),
+            status=TriggerStatus.success,
+            result=serialize_message(message, get_draw_status(message))
         ))
     
     @bot.event
     async def on_message_edit(_: Message, message: Message):
-        if message.author.id != 936929561302675456:
+        if message.author.id != settings_discord.MJ_BOT_ID:  # exclude messages not come from mj bot
             return
-        
-        trigger_id = match_trigger_id(message.content)
-        if not trigger_id:
-            return
-        
         logger.debug(f"on_message_edit: {message}")
-        if message.attachments:
-            print({"attachments": message.attachments})
-            print()
-        if message.webhook_id != "":
-            await callback(ICallback(
-                type=TriggerStatus.generating,
-                id=message.id,
-                content=message.content,
-                attachments=[IAttachment.parse_obj(attachment.to_dict()) for attachment in message.attachments],
-                trigger_id=trigger_id,
-                trigger_status=TriggerStatus.edit,
-            ))
+        
+        await callback(IMJMessageCallback(
+            id=get_trigger_id(message.content),
+            status=TriggerStatus.success,
+            result=serialize_message(message, DrawStatus.generating)
+        ))
     
     @bot.event
     async def on_message_delete(message: Message):
-        if message.author.id != 936929561302675456:
+        if message.author.id != settings_discord.MJ_BOT_ID:  # exclude messages not come from mj bot
             return
-        
-        trigger_id = match_trigger_id(message.content)
-        if not trigger_id:
-            return
-        
         logger.debug(f"on_message_delete: {message}")
-        if get_temp(trigger_id) is None:
-            return
         
-        logger.warning(f"sensitive content: {message}")
-        await callback(ICallback(
-            type=TriggerStatus.banned,
-            id=message.id,
-            content=message.content,
-            attachments=[IAttachment.parse_obj(attachment.to_dict()) for attachment in message.attachments],
-            trigger_id=trigger_id,
-            trigger_status=TriggerStatus.delete
+        await callback(IMJMessageCallback(
+            id=get_trigger_id(message.content),
+            status=TriggerStatus.success,
+            result=serialize_message(message, DrawStatus.deleted)
         ))
 
 
-async def callback(data: ICallback, websocket: WebSocket = None):
+async def callback(model: ITriggerCallback, websocket: WebSocket = None):
+    data = json.loads(model.json())  # model --> json string --> json dict, (we used UUID), see: https://stackoverflow.com/questions/65622045/pydantic-convert-to-jsonable-dict-not-full-json-string
     if settings_discord.DUMP_CALLBACK_DATA:
         with open(DATA_DIR / f"callback-{time.time()}.json", "w") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
-    
-    logger.debug(f"callback data: {data}")
     
     if settings_server.WEBSOCKET_ENABLED and websocket:
         logger.debug(f"sending to {websocket}")

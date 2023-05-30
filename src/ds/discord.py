@@ -1,50 +1,22 @@
 from __future__ import annotations
 
-from enum import StrEnum
-from typing import List
+from typing import List, Generic
 
-# from discord.types.message import Attachment
 from discord.types.snowflake import Snowflake
+from pydantic.generics import GenericModel
+from src.ds.midjourney import IDraw
 
-from src.ds import TriggerID, MyBaseModel
+from src.ds import MyBaseModel, ITriggerCallback, T
 
-
-class TriggerType(StrEnum):
-    imagine = "imagine"
-    upscale = "upscale"
-    variation = "variation"
-    max_upscale = "max_upscale"
-    reset = "reset"
-    describe = "describe"
-    upload = "upload"
-
-
-class TriggerStatus(StrEnum):
-    # when trigger
-    success = "success"
-    fail = "fail"
-    
-    # when discord return
-    message = "message"
-    edit = "editing"
-    delete = "delete"
-    
-    # others
-    start = "start"  # 首次触发
-    generating = "generating"  # 生成中
-    end = "end"  # 生成结束
-    error = "error"  # 生成错误
-    banned = "banned"  # 提示词被禁
-    
-    verify = "verify"  # 需人工验证
-    
-    unknown = "unknown"  # fallback for test
+MessageID = int
 
 
 class IAttachment(MyBaseModel):
     """
     不要直接用 discord.types.message.Attachment(TypedDict)
-        - 会导致 circular import（官方 discord issues 里搜索也无果：https://github.com/Rapptz/discord.py/issues?q=is%3Aissue+circular）
+        - 会导致 circular import（
+            - 官方 discord issues 里搜索也无果：https://github.com/Rapptz/discord.py/issues?q=is%3Aissue+circular
+            - 尚不知道 discord 自己是如何没有这个问题的，可能和 partial import 有关，也可能和 TYPE_CHECK 有关
         - 在 fastapi router 里即使声明 data 为 TypedDict，也会自动转成 BaseModel 进行校验，
             而 pydantic v1 是不支持 NotRequired 字段校验的（会默认 Required），导致bug
     因此最好的办法，就是基于 Attachment(TypedDict) 重新定义一份 pydantic 版本，并：
@@ -64,11 +36,15 @@ class IAttachment(MyBaseModel):
     ephemeral: bool = False
 
 
-class ICallback(MyBaseModel):
-    type: str
-    id: int
+class IMessageRaw(MyBaseModel):
+    id: MessageID
     content: str
     attachments: List[IAttachment]
-    
-    trigger_id: TriggerID
-    trigger_status: TriggerStatus
+
+
+class IMessage(MyBaseModel, GenericModel, Generic[T]):
+    raw: IMessageRaw
+    extra: T
+
+
+IMJMessageCallback = ITriggerCallback[IMessage[IDraw]]

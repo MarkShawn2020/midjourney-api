@@ -3,8 +3,7 @@ from fastapi import APIRouter
 from settings_server import PROMPT_PREFIX, PROMPT_SUFFIX
 from src.core.discord import bridge
 from src.core.server.handlers import http_response
-from src.ds.discord import TriggerType
-from src.ds.server import TriggerImagineIn, TriggerUVIn, TriggerResetIn
+from src.ds.midjourney import TriggerType, ITriggerImagine, ITriggerUV, ITriggerReset
 from src.lib.ban import check_banned
 from src.lib.utils import unique_id
 
@@ -13,7 +12,7 @@ midjourney_router = APIRouter(prefix='/midjourney', tags=['midjourney'])
 
 @midjourney_router.post(f"/{TriggerType.imagine}", )
 @http_response
-async def imagine(body: TriggerImagineIn):
+async def imagine(body: ITriggerImagine):
     check_banned(body.prompt)
     
     trigger_id = str(unique_id())
@@ -24,19 +23,19 @@ async def imagine(body: TriggerImagineIn):
 
 @midjourney_router.post(f"/{TriggerType.upscale}", )
 @http_response
-async def upscale(body: TriggerUVIn):
+async def upscale(body: ITriggerUV):
     return body.trigger_id, await bridge.upscale(**body.dict())
 
 
 @midjourney_router.post(f"/{TriggerType.variation}", )
 @http_response
-async def variation(body: TriggerUVIn):
+async def variation(body: ITriggerUV):
     return body.trigger_id, await bridge.variation(**body.dict())
 
 
 @midjourney_router.post(f"/{TriggerType.reset}", )
 @http_response
-async def reset(body: TriggerResetIn):
+async def reset(body: ITriggerReset):
     return body.trigger_id, await bridge.reset(**body.dict())
 
 

@@ -1,15 +1,21 @@
 import hashlib
 import re
 import time
-from typing import Union
 
+from fastapi import HTTPException
 from settings_server import TRIGGER_ID_PATTERN
+from src.lib.log import logger
+
 from src.ds import TriggerID
 
 
-def match_trigger_id(content: str) -> Union[TriggerID, None]:
+def get_trigger_id(content: str) -> TriggerID:
     match = re.findall(TRIGGER_ID_PATTERN, content)
-    return int(match[0]) if match else None
+    try:
+        return int(match[0])
+    except Exception as e:
+        logger.debug(e)
+        raise HTTPException(500, e.__str__())
 
 
 def unique_id():

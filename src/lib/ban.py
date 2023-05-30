@@ -1,14 +1,13 @@
 import asyncio
 
 import aiofiles
-
 import src.lib.path
 from src.lib.exceptions import BannedPromptError
 
 
 async def loads_banned_words():
     prompt = set()
-    async with aiofiles.open(src.lib.path.BANNED_PROMPTS_FILE_PATH, "r") as r:
+    async with aiofiles.open(src.lib.path.BANNED_WORDS_FILE_PATH, "r") as r:
         for line in await r.readlines():
             prompt.add(line.strip())
     
