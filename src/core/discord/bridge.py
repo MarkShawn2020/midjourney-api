@@ -3,20 +3,20 @@ from typing import Dict, Any
 
 import aiohttp
 
-from settings_discord import GUILD_ID, CHANNEL_ID, USER_TOKEN, TRIGGER_URL
+from settings import DISCORD_GUILD_ID, DISCORD_CHANNEL_ID, DISCORD_USER_TOKEN, DISCORD_TRIGGER_URL
 from src.lib.fetch import fetch
 
 
 async def trigger(payload: Dict[str, Any]):
     headers = {
         "Content-Type": "application/json",
-        "Authorization": USER_TOKEN
+        "Authorization": DISCORD_USER_TOKEN
     }
     async with aiohttp.ClientSession(
         timeout=aiohttp.ClientTimeout(total=30),
         headers=headers
     ) as session:
-        return await fetch(session, TRIGGER_URL, data=json.dumps(payload))
+        return await fetch(session, DISCORD_TRIGGER_URL, data=json.dumps(payload))
 
 
 async def upload():
@@ -27,8 +27,8 @@ def _trigger_payload(type_: int, data: Dict[str, Any], **kwargs) -> Dict[str, An
     payload = {
         "type": type_,
         "application_id": "936929561302675456",
-        "guild_id": GUILD_ID,
-        "channel_id": CHANNEL_ID,
+        "guild_id": DISCORD_GUILD_ID,
+        "channel_id": DISCORD_CHANNEL_ID,
         "session_id": "cb06f61453064c0983f2adae2a88c223",
         "data": data
     }

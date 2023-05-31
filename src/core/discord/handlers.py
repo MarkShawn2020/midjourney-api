@@ -5,19 +5,18 @@ from typing import MutableMapping
 from uuid import UUID
 
 import aiohttp
-import settings_discord
-import settings_server
 from discord import Message
 from discord.ext.commands import Bot
+from starlette.websockets import WebSocket
+
+import settings
+from settings import DATA_DIR
+from src.ds import TriggerStatus, ITriggerCallback, TriggerID
 from src.ds.discord import IAttachment, IMessageRaw, IMJMessageCallback, IMessage
 from src.ds.midjourney import DrawStatus, IDraw
 from src.lib.fetch import fetch
 from src.lib.log import logger
-from src.lib.path import DATA_DIR
 from src.lib.utils import get_trigger_id
-from starlette.websockets import WebSocket
-
-from src.ds import TriggerStatus, ITriggerCallback, TriggerID
 
 trigger_uuid_cache: MutableMapping[TriggerID, UUID] = {}
 
@@ -90,7 +89,7 @@ def register_discord_handlers(bot: Bot):
     
     @bot.event
     async def on_message(message: Message):
-        if message.author.id != settings_discord.MJ_BOT_ID:  # exclude messages not come from mj bot
+        if message.author.id != settings.MIDJOURNEY_BOT_ID:  # exclude messages not come from mj bot
             return
         logger.debug(f"on_message: {message}")
         
@@ -102,7 +101,7 @@ def register_discord_handlers(bot: Bot):
     
     @bot.event
     async def on_message_edit(_: Message, message: Message):
-        if message.author.id != settings_discord.MJ_BOT_ID:  # exclude messages not come from mj bot
+        if message.author.id != settings.MIDJOURNEY_BOT_ID:  # exclude messages not come from mj bot
             return
         logger.debug(f"on_message_edit: {message}")
         
@@ -114,7 +113,7 @@ def register_discord_handlers(bot: Bot):
     
     @bot.event
     async def on_message_delete(message: Message):
-        if message.author.id != settings_discord.MJ_BOT_ID:  # exclude messages not come from mj bot
+        if message.author.id != settings.MIDJOURNEY_BOT_ID:  # exclude messages not come from mj bot
             return
         logger.debug(f"on_message_delete: {message}")
         
@@ -127,16 +126,16 @@ def register_discord_handlers(bot: Bot):
 
 async def callback(model: ITriggerCallback, websocket: WebSocket = None):
     data = json.loads(model.json())  # model --> json string --> json dict, (we used UUID), see: https://stackoverflow.com/questions/65622045/pydantic-convert-to-jsonable-dict-not-full-json-string
-    if settings_discord.DUMP_CALLBACK_DATA:
+    if settings.DISCORD_DUMP_CALLBACK_DATA:
         with open(DATA_DIR / f"callback-{time.time()}.json", "w") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
     
-    if settings_server.WEBSOCKET_ENABLED and websocket:
+    if settings.DISCORD_WEBSOCKET_ENABLED and websocket:
         logger.debug(f"sending to {websocket}")
         await websocket.send_json(data)
         return
     
-    if not settings_discord.CALLBACK_URL:
+    if not settings.DISCORD_CALLBACK_URL:
         logger.warning("没有配置 CALLBACK_URL，因此忽略回调数据")
         return
     
@@ -146,4 +145,4 @@ async def callback(model: ITriggerCallback, websocket: WebSocket = None):
         headers=headers
     ) as session:
         logger.debug(f"fetching callback_url")
-        await fetch(session, settings_discord.CALLBACK_URL, json=data)
+        await fetch(session, settings.DISCORD_CALLBACK_URL, json=data)

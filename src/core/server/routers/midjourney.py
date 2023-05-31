@@ -1,8 +1,8 @@
 from fastapi import APIRouter
-
-from settings_server import PROMPT_PREFIX, PROMPT_SUFFIX
 from src.core.discord import bridge
 from src.core.server.handlers import http_response
+
+from settings import DISCORD_PROMPT_PREFIX, DISCORD_PROMPT_SUFFIX
 from src.ds.midjourney import TriggerType, ITriggerImagine, ITriggerUV, ITriggerReset
 from src.lib.ban import check_banned
 from src.lib.utils import unique_id
@@ -16,7 +16,7 @@ async def imagine(body: ITriggerImagine):
     check_banned(body.prompt)
     
     trigger_id = str(unique_id())
-    prompt = f"{PROMPT_PREFIX}{trigger_id}{PROMPT_SUFFIX}{body.prompt}"  # 拼接 Prompt 形如: <#1234567890#>a cute cat
+    prompt = f"{DISCORD_PROMPT_PREFIX}{trigger_id}{DISCORD_PROMPT_SUFFIX}{body.prompt}"  # 拼接 Prompt 形如: <#1234567890#>a cute cat
     
     return trigger_id, await bridge.imagine(prompt)
 

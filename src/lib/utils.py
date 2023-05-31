@@ -3,14 +3,14 @@ import re
 import time
 
 from fastapi import HTTPException
-from settings_server import TRIGGER_ID_PATTERN
-from src.lib.log import logger
 
+import settings
 from src.ds import TriggerID
+from src.lib.log import logger
 
 
 def get_trigger_id(content: str) -> TriggerID:
-    match = re.findall(TRIGGER_ID_PATTERN, content)
+    match = re.findall(settings.DISCORD_TRIGGER_ID_PATTERN, content)
     try:
         return int(match[0])
     except Exception as e:
