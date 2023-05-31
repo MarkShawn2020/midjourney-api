@@ -3,7 +3,7 @@ from functools import wraps
 
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
-from src.core.discord.main import init_discord_bot
+from main_discord import init_discord_bot
 from starlette import status
 from starlette.responses import JSONResponse
 
